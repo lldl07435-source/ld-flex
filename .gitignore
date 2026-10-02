@@ -1,0 +1,24 @@
+__pycache__/
+*.py[cod]
+.venv/
+.idea/
+build/
+data/
+evidence/
+exports/
+*.log
+*.sqlite3*
+.env
+.DS_Store
+Thumbs.db
+
+# Account upgrade: local state and secrets
+**/.env
+**/.env.*
+!**/.env.example
+**/*.sqlite3
+**/*.sqlite3-*
+**/.portal-secret
+**/.portal.lock
+**/测试结果/
+**/upgrade-baseline.json
