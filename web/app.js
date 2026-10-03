@@ -66,3 +66,5 @@ function render(s){
 }
 async function poll(){try{const state=await api('/api/state');render(state);$('connection').textContent=online?'服务在线':'本地服务在线';}catch(e){$('connection').textContent='服务未连接';}finally{setTimeout(poll,750);}}
 api('/api/config').then(config=>{token=config.token;hardwareAllowed=config.hardware_allowed;online=config.mode==='cloud';if(online){$('batch-seeds').value='10';$('batch-seeds').max='10';$('batch-count').max='40';}$('run-environment').textContent=(online?'在线工作区':'本机工作区')+' · V'+config.version;$('data-location').textContent='数据保存到当前账户';loadPorts().catch(e=>notice(e.message));poll();}).catch(e=>notice('无法连接服务：'+e.message));
+
+window.addEventListener('load',()=>{const id=location.hash.slice(1);const button=document.querySelector('[data-page=\"'+id+'\"]');if(button)button.click();});
