@@ -21,7 +21,7 @@ document.querySelectorAll('.nav').forEach(button=>button.addEventListener('click
   $('page-title').textContent=titles[activePage];
   if(activePage==='records') loadHistory().catch(e=>notice(e.message));
 }));
-bind('start',()=>api('/api/start',{seed:number('seed'),count:number('count'),policy:$('policy').value,scenario:$('scenario').value,speed:number('speed')}));
+bind('start',async()=>{await api('/api/start',{seed:number('seed'),count:number('count'),policy:$('policy').value,scenario:$('scenario').value,speed:number('speed')});await openClassicTwin();});
 bind('stop',()=>api('/api/stop',{}));
 bind('recover',()=>api('/api/recover',{confirmed:true}));
 bind('benchmark',()=>api('/api/benchmark',{seeds:number('batch-seeds'),count:number('batch-count')}));
@@ -68,3 +68,14 @@ async function poll(){try{const state=await api('/api/state');render(state);$('c
 api('/api/config').then(config=>{token=config.token;hardwareAllowed=config.hardware_allowed;online=config.mode==='cloud';if(online){$('batch-seeds').value='10';$('batch-seeds').max='10';$('batch-count').max='40';}$('run-environment').textContent=(online?'在线工作区':'本机工作区')+' · V'+config.version;$('data-location').textContent='数据保存到当前账户';loadPorts().catch(e=>notice(e.message));poll();}).catch(e=>notice('无法连接服务：'+e.message));
 
 window.addEventListener('load',()=>{const id=location.hash.slice(1);const button=document.querySelector('[data-page=\"'+id+'\"]');if(button)button.click();});
+
+let ldClassicTwin,ldClassicTwinPoll;
+async function openClassicTwin(runId){
+  let host=document.getElementById('classic-twin');
+  if(!host){host=document.createElement('section');host.id='classic-twin';const parent=document.getElementById('ld'==='ld'?'live':'flight');parent.prepend(host);}
+  const {TwinPlayer}=await import('/twin-viewer.js');
+  ldClassicTwin?.dispose();clearInterval(ldClassicTwinPoll);ldClassicTwin=new TwinPlayer(host,{domain:'ld'});
+  if(runId)await ldClassicTwin.load(runId);else{await ldClassicTwin.live();ldClassicTwinPoll=setInterval(()=>ldClassicTwin.live(),160);}
+  host.scrollIntoView({block:'start',behavior:'smooth'});
+}
+window.addEventListener('pagehide',()=>{ldClassicTwin?.dispose();clearInterval(ldClassicTwinPoll);});

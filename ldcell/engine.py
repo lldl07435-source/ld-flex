@@ -22,13 +22,13 @@ class Engine:
                 break
             except (OSError,ValueError):continue
 
-    def start(self,seed=42,count=24,policy='BEAM',scenario='normal',speed=2):
+    def start(self,seed=42,count=24,policy='BEAM',scenario='normal',speed=2,task_kind='belt',manual=False):
         if speed not in (1,2,5,10): raise ValueError('invalid speed')
         with self.lock:
             if self.sim and self.sim.status=='running': raise ValueError('请先停止当前仿真')
             if self.hardware and self.hardware.connected: raise ValueError('先断开实物会话再启动仿真')
-            sim=Simulation(seed,count,policy,scenario)
-            log=RunLog(self.data_root,{'seed':seed,'count':count,'policy':policy,'scenario':scenario,'speed':speed})
+            sim=Simulation(seed,count,policy,scenario,task_kind=task_kind,manual=manual)
+            log=RunLog(self.data_root,{'seed':seed,'count':count,'policy':policy,'scenario':scenario,'speed':speed,'task_kind':task_kind,'control_mode':'manual' if manual else 'automatic'})
             sim.events=log.event
             log.event('task_set',{'jobs':[j.__dict__ for j in sim.jobs],'service_ms':sim.travel})
             self.sim=sim;self.log=log;self.error=''
@@ -39,6 +39,7 @@ class Engine:
             while sim.status=='running':
                 with self.lock:
                     for _ in range(speed): sim.step()
+                    if sim.manual_mode and sim.now>300000: sim.stop()
                 time.sleep(.01)
             with self.lock: log.finish(sim.summary(),sim.rows,status=sim.status)
         except Exception as exc:
@@ -48,6 +49,11 @@ class Engine:
     def stop(self):
         with self.lock:
             if self.sim: self.sim.stop()
+
+    def manual_feed(self,route):
+        with self.lock:
+            if not self.sim: raise ValueError('尚无手控仿真')
+            self.sim.manual_feed(route)
 
     def recover(self,confirmed):
         if not confirmed: raise ValueError('需要先确认已清空通道')

@@ -12,11 +12,11 @@ from ldcell.hardware import ports
 ROOT = Path(__file__).resolve().parent
 DEFAULT_DATA_ROOT = ROOT / 'data'
 WEB_ROOT = ROOT / 'web'
-VERSION = '1.3.0'
+VERSION = '1.4.0'
 DEFAULT_PORT = 8876
 COOKIE_NAME = 'ldflex_session'
 TITLE = 'LD-Flex 可恢复分拣实验平台'
-STATIC_FILES = {'studio.html', 'studio.css', 'studio.js', 'lucide.js', 'lab.html', 'lab.css', 'lab.js', 'index.html', 'app.js', 'style.css'}
+STATIC_FILES = {'three.module.js', 'three.core.js', 'twin-orbit.js', 'twin-models.js', 'twin-timeline.js', 'twin-viewer.js', 'twin.css', 'twin.html', 'twin-entry.js', 'studio.html', 'studio.css', 'studio.js', 'lucide.js', 'lab.html', 'lab.css', 'lab.js', 'index.html', 'app.js', 'style.css'}
 LEGACY_NAMES = ('runs.sqlite3', 'runs', 'benchmarks', '运行日志.log')
 _hardware_lock = threading.RLock()
 _hardware_owner = None
@@ -68,6 +68,12 @@ def handle(request, route, raw):
     global _hardware_owner, _hardware_device
     from portal import data
     ctx = data.context(request.user)
+    if route.startswith('manual/'):
+        from portal.manual_api import handle as manual_handle
+        return manual_handle(request, ctx, 'ld', route, raw)
+    if route.startswith('twin/'):
+        from portal.twin import handle as twin_handle
+        return twin_handle(request, ctx, 'ld', route, raw)
     if route.startswith('studio/'):
         from portal.studio_api import handle as studio_handle
         return studio_handle(request, ctx, 'ld', route, raw)
