@@ -22,6 +22,7 @@ class HardwareSession:
             transport=serial.Serial(port,115200,timeout=.08,write_timeout=.2)
         self.serial=transport;self.lock=threading.RLock();self.seq=0;self.session=0;self.job=0
         self.connected=True;self.last=None;self.current=None;self.results=[];self.error='';self.shutdown=threading.Event();self.recovery_required=True
+        self.received_at=None;self.round_trip_ms=None;self.bad_frames=0
         self.log=RunLog(data_root,{'port':port,'baud':115200},mode='hardware')
         self.serial.reset_input_buffer()
         try: self._exchange(0)
@@ -33,6 +34,7 @@ class HardwareSession:
         self.seq=(self.seq+1)&0xffffffff
         packet=frame(self.seq,op,self.session,job,route)
         self.log.event('serial_tx',{'hex':packet.hex(),'seq':self.seq,'op':op})
+        sent_at=time.monotonic()
         self.serial.write(packet)
         deadline=time.monotonic()+.45
         raw_buffer=b''
@@ -45,9 +47,12 @@ class HardwareSession:
             raw,raw_buffer=raw_buffer,b''
             try: decoded=response(raw)
             except ValueError:
+                self.bad_frames+=1
                 self.log.event('bad_frame',{'hex':raw.hex()});continue
+            received_at=time.monotonic()
             self.log.event('serial_rx',decoded)
             if decoded['seq']!=self.seq: continue
+            self.received_at=received_at;self.round_trip_ms=(self.received_at-sent_at)*1000
             self.last=decoded
             if self.session and op!=1 and decoded['session']!=self.session:
                 self._unknown('device session changed');self.session=0
@@ -66,7 +71,8 @@ class HardwareSession:
     def _observe(self,s):
         if self.current and s['job']==self.current['command_id']:
             if s['state']==6:
-                row={**self.current,'outcome':'completed','uptime_end':s['uptime']}
+                row={**self.current,'outcome':'completed','uptime_end':s['uptime'],
+                     'cycle_s':((s['uptime']-self.current['uptime_start'])&0xffffffff)/1000}
                 self.results.append(row);self.log.event('job_result',row);self.current=None
             elif s['state'] in (0,7): self._unknown(FAULTS[s['fault']])
 
@@ -101,6 +107,9 @@ class HardwareSession:
             self.current={'order_id':order_id.strip(),'command_id':self.job,'route':route,'uptime_start':self.last['uptime']}
             self.log.event('submitted',self.current)
             reply=self._exchange(2,self.job,route)
+            if self.current and reply['result'] in (0,1):
+                self.current['uptime_start']=reply['uptime']
+                self.log.event('device_accepted',dict(self.current))
             if reply['result'] not in (0,1):
                 self.current=None;raise ValueError('启动被拒绝：'+RESULTS[reply['result']])
 
@@ -127,4 +136,7 @@ class HardwareSession:
         with self.lock:
             s=dict(self.last) if self.last else {}
             if s: s.update(state_name=STATES[s['state']],fault_name=FAULTS[s['fault']])
-            return {'connected':self.connected,'armed':bool(self.session) and not self.recovery_required,'device':s,'current':self.current,'results':self.results[-30:],'error':self.error,'run_id':self.log.id}
+            return {'connected':self.connected,'armed':bool(self.session) and not self.recovery_required,'device':s,'current':self.current,'results':self.results[-30:],'error':self.error,'run_id':self.log.id,
+                    'feedback_age_ms':(time.monotonic()-self.received_at)*1000 if self.received_at else None,
+                    'round_trip_ms':self.round_trip_ms,'bad_frames':self.bad_frames,
+                    'unknown_count':sum(r['outcome']=='unknown' for r in self.results)}

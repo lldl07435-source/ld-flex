@@ -12,11 +12,11 @@ from ldcell.hardware import ports
 ROOT = Path(__file__).resolve().parent
 DEFAULT_DATA_ROOT = ROOT / 'data'
 WEB_ROOT = ROOT / 'web'
-VERSION = '1.1.1'
+VERSION = '1.2.0'
 DEFAULT_PORT = 8876
 COOKIE_NAME = 'ldflex_session'
 TITLE = 'LD-Flex 可恢复分拣实验平台'
-STATIC_FILES = {'index.html', 'app.js', 'style.css'}
+STATIC_FILES = {'lab.html', 'lab.css', 'lab.js', 'index.html', 'app.js', 'style.css'}
 LEGACY_NAMES = ('runs.sqlite3', 'runs', 'benchmarks', '运行日志.log')
 _hardware_lock = threading.RLock()
 _hardware_owner = None
@@ -68,6 +68,9 @@ def handle(request, route, raw):
     global _hardware_owner, _hardware_device
     from portal import data
     ctx = data.context(request.user)
+    if route.startswith('lab/'):
+        from portal.lab_api import handle as lab_handle
+        return lab_handle(request, ctx, 'ld', route, raw)
     engine = ctx.engine
     if request.method == 'GET':
         if route == 'config':
